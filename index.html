@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Organization Network Map — Quinta Vale da Lama</title>
+  <meta name="description" content="Interactive network visualization of VdL Farm Holacracy governance structure." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <style>
+    :root{--bg:#0a0f1a;--bg-card:#111827;--bg-panel:#1a2236;--border:#2a3a5c;--border-light:#3a4a6c;--text:#e8edf5;--text-muted:#8899bb;--text-dim:#5a6a8c;--circle-l0:#3b82f6;--circle-l1:#6366f1;--circle-l2:#8b5cf6;--person:#f59e0b;--edge-leads:#ef4444;--edge-represents:#10b981;--edge-energizes:#f59e0b;--edge-subcircle:#3b82f6;--accent:#6366f1}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:linear-gradient(135deg,var(--bg) 0%,#0f1729 50%,#0a1020 100%);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+    .header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(17,24,39,.85);backdrop-filter:blur(12px);flex-shrink:0;z-index:10}
+    .header-left{display:flex;align-items:center;gap:14px}
+    .header-logo{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--circle-l0),var(--circle-l2));display:flex;align-items:center;justify-content:center;font-size:18px}
+    .header h1{font-size:17px;font-weight:700;letter-spacing:-.02em}
+    .header .subtitle{font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace}
+    .header-right{display:flex;align-items:center;gap:12px}
+    .status-badge{padding:4px 10px;border-radius:20px;font-size:10px;font-family:'DM Mono',monospace;font-weight:500;display:flex;align-items:center;gap:5px}
+    .status-badge.live{background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3)}
+    .status-badge.static{background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .search-box{position:relative}
+    .search-box input{width:200px;padding:7px 12px 7px 30px;background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s}
+    .search-box input:focus{border-color:var(--accent)}
+    .search-box .icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.4}
+    .main{flex:1;display:flex;overflow:hidden;position:relative}
+    .graph-container{flex:1;position:relative}
+    .graph-container svg{display:block;width:100%;height:100%}
+    .legend{position:absolute;bottom:16px;left:16px;background:rgba(17,24,39,.92);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:12px;padding:14px 18px;font-size:11px;z-index:5}
+    .legend-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:8px}
+    .legend-grid{display:flex;gap:20px}
+    .legend-col{display:flex;flex-direction:column;gap:5px}
+    .legend-item{display:flex;align-items:center;gap:8px;color:var(--text-muted);cursor:pointer;transition:opacity .2s;user-select:none}
+    .legend-item.disabled{opacity:.3}
+    .legend-node{width:12px;height:12px;border-radius:50%}
+    .legend-hint{font-size:9px;color:var(--text-dim);margin-top:6px}
+    .tooltip{position:absolute;top:16px;right:16px;background:rgba(17,24,39,.92);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:12px;padding:12px 16px;max-width:280px;pointer-events:none;z-index:5;opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s}
+    .tooltip.visible{opacity:1;transform:translateY(0)}
+    .tooltip-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .tooltip-dot{width:10px;height:10px;border-radius:50%}
+    .tooltip-name{font-weight:700;font-size:14px}
+    .tooltip-purpose{font-size:12px;color:var(--text-muted);line-height:1.4}
+    .tooltip-meta{margin-top:6px;font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace}
+    .detail-panel{width:300px;border-left:1px solid var(--border);background:var(--bg-card);padding:20px;overflow-y:auto;flex-shrink:0;transform:translateX(100%);transition:transform .25s ease-out;z-index:5}
+    .detail-panel.open{transform:translateX(0)}
+    .detail-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+    .detail-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px}
+    .detail-name{font-size:16px;font-weight:700}
+    .detail-type{margin-top:2px;font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace}
+    .close-btn{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;padding:4px}
+    .close-btn:hover{color:var(--text)}
+    .purpose-box{padding:12px 14px;background:var(--bg-panel);border-radius:10px;margin-bottom:16px}
+    .section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:4px}
+    .purpose-text{font-size:13px;line-height:1.5}
+    .conn-list{display:flex;flex-direction:column;gap:6px}
+    .conn-item{padding:10px 12px;background:var(--bg-panel);border-radius:8px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .15s}
+    .conn-item:hover{background:rgba(58,74,108,.3)}
+    .conn-bar{width:4px;height:24px;border-radius:2px;flex-shrink:0}
+    .conn-name{font-size:13px;font-weight:500}
+    .conn-type{font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace}
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+    .stat-box{text-align:center;padding:8px 4px;background:rgba(10,15,26,.5);border-radius:6px}
+    .stat-value{font-size:18px;font-weight:700}
+    .stat-label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em}
+    .loading-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);z-index:20;transition:opacity .5s}
+    .loading-overlay.hidden{opacity:0;pointer-events:none}
+    .loading-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .loading-text{margin-top:14px;font-size:13px;color:var(--text-muted)}
+    @media(max-width:768px){.header{padding:10px 14px}.header h1{font-size:14px}.search-box input{width:140px}.detail-panel{width:260px}.legend{bottom:10px;left:10px;padding:10px 14px}}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <div class="header-logo">🌿</div>
+      <div><h1>Quinta Vale da Lama</h1><div class="subtitle">Organization Network Map</div></div>
+    </div>
+    <div class="header-right">
+      <div id="statusBadge" class="status-badge static"><div class="status-dot"></div><span id="statusText">Loading...</span></div>
+      <div class="search-box"><span class="icon">🔍</span><input type="text" id="searchInput" placeholder="Search circles & people..." /></div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="graph-container" id="graphContainer">
+      <svg id="graphSvg"></svg>
+      <div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div><div class="loading-text">Loading organization data...</div></div>
+      <div class="legend">
+        <div class="legend-title">Legend</div>
+        <div class="legend-grid">
+          <div class="legend-col">
+            <div class="legend-item"><div class="legend-node" style="border:2px solid var(--circle-l0);background:rgba(59,130,246,.13)"></div>Circle</div>
+            <div class="legend-item"><div class="legend-node" style="border:2px solid var(--person);background:rgba(245,158,11,.2)"></div>Person</div>
+          </div>
+          <div class="legend-col">
+            <div class="legend-item" data-filter="leads"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--edge-leads)" stroke-width="2.5"/></svg>Leads</div>
+            <div class="legend-item" data-filter="represents"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--edge-represents)" stroke-width="2" stroke-dasharray="6,3"/></svg>Represents</div>
+            <div class="legend-item" data-filter="energizes"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--edge-energizes)" stroke-width="1.5" stroke-dasharray="3,3"/></svg>Energizes</div>
+            <div class="legend-item" data-filter="subcircle"><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="var(--edge-subcircle)" stroke-width="1.5" stroke-dasharray="8,4"/></svg>Contains</div>
+          </div>
+        </div>
+        <div class="legend-hint">Click edge types to toggle · Drag nodes · Scroll to zoom</div>
+      </div>
+      <div class="tooltip" id="tooltip">
+        <div class="tooltip-header"><div class="tooltip-dot" id="tooltipDot"></div><span class="tooltip-name" id="tooltipName"></span></div>
+        <div class="tooltip-purpose" id="tooltipPurpose"></div>
+        <div class="tooltip-meta" id="tooltipMeta"></div>
+      </div>
+    </div>
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="detail-icon" id="detailIcon">◉</div>
+          <div><div class="detail-name" id="detailName"></div><div class="detail-type" id="detailType"></div></div>
+        </div>
+        <button class="close-btn" id="detailClose">✕</button>
+      </div>
+      <div class="purpose-box" id="purposeBox" style="display:none"><div class="section-label">Purpose</div><div class="purpose-text" id="detailPurpose"></div></div>
+      <div class="section-label" id="connLabel">Connections (0)</div>
+      <div class="conn-list" id="connList"></div>
+      <div id="statsSection" style="display:none"><div class="section-label" style="margin-top:16px">Circle Stats</div><div class="stats-grid" id="statsGrid"></div></div>
+    </div>
+  </div>
+  <script>
+    const API_URL="https://vdl-orgmap-api.replit.app/api/graph";
+    const STATIC_DATA={nodes:[{id:"c0",name:"VdL Farm",fullName:"VdL Farm",purpose:"A holarchy of richly interconnected entities",nodeType:"circle",level:0,status:"Active"},{id:"c1",name:"Farm Ops",fullName:"Farm Ops",purpose:"Regenerative Organic Agriculture",nodeType:"circle",level:1,status:"Active"},{id:"c2",name:"Casa Ops",fullName:"Casa Ops",purpose:"Comfort Rooted in Nature",nodeType:"circle",level:1,status:"Active"},{id:"c3",name:"OMG",fullName:"OMG: Organic Market Garden",purpose:"Everything you need to be well-nourished",nodeType:"circle",level:2,status:"Active"},{id:"c4",name:"HFC",fullName:"HFC: Holistic Farm Care",purpose:"Living Soil, growing ever-more abundant",nodeType:"circle",level:2,status:"Active"},{id:"c5",name:"B&B",fullName:"B&B Accommodations",purpose:"Welcoming, regenerative accommodation",nodeType:"circle",level:2,status:"Active"},{id:"c6",name:"Restaurant",fullName:"Restaurant",purpose:"Farm to Fork to Farm cycle",nodeType:"circle",level:2,status:"Active"},{id:"c7",name:"Activities",fullName:"Activities",purpose:"Connection with self, others, and the land",nodeType:"circle",level:2,status:"Active"},{id:"c8",name:"Groups & Retreats",fullName:"Groups & Retreats",purpose:"Integrated regenerative experiences",nodeType:"circle",level:2,status:"Active"},{id:"p0",name:"Ricardo",fullName:"Ricardo Gomes",nodeType:"person",status:"Active"},{id:"p1",name:"Eunice",fullName:"Eunice",nodeType:"person",status:"Active"},{id:"p2",name:"Catarina",fullName:"Catarina Shepherd",nodeType:"person",status:"Active"},{id:"p3",name:"Hugo",fullName:"Hugo Barbosa",nodeType:"person",status:"Active"},{id:"p4",name:"Luis",fullName:"Luis Silva",nodeType:"person",status:"Active"},{id:"p5",name:"Nita",fullName:"Nita Barroca",nodeType:"person",status:"Active"},{id:"p6",name:"Walt",fullName:"Walt Ludwick",nodeType:"person",status:"Active"},{id:"p7",name:"Anna",fullName:"Anna Pelegrim",nodeType:"person",status:"Active"},{id:"p8",name:"Henrico",fullName:"Henrico Sousa",nodeType:"person",status:"Active"}],edges:[{source:"c1",target:"c0",type:"subcircle",label:"Sub-circle of"},{source:"c2",target:"c0",type:"subcircle",label:"Sub-circle of"},{source:"c3",target:"c1",type:"subcircle",label:"Sub-circle of"},{source:"c4",target:"c1",type:"subcircle",label:"Sub-circle of"},{source:"c5",target:"c2",type:"subcircle",label:"Sub-circle of"},{source:"c6",target:"c2",type:"subcircle",label:"Sub-circle of"},{source:"c7",target:"c2",type:"subcircle",label:"Sub-circle of"},{source:"c8",target:"c2",type:"subcircle",label:"Sub-circle of"},{source:"p0",target:"c1",type:"leads",label:"Circle Lead"},{source:"p2",target:"c2",type:"leads",label:"Circle Lead"},{source:"p3",target:"c1",type:"represents",label:"Circle Rep"},{source:"p1",target:"c2",type:"represents",label:"Circle Rep"},{source:"p0",target:"c1",type:"energizes",label:"Member"},{source:"p3",target:"c1",type:"energizes",label:"Member"},{source:"p4",target:"c1",type:"energizes",label:"Member"},{source:"p3",target:"c3",type:"energizes",label:"Member"},{source:"p0",target:"c4",type:"energizes",label:"Member"},{source:"p4",target:"c4",type:"energizes",label:"Member"},{source:"p2",target:"c2",type:"energizes",label:"Member"},{source:"p1",target:"c2",type:"energizes",label:"Member"}]};
+    let graphData=null,isLive=false,selectedNode=null,simulation=null;
+    const activeFilters={leads:true,represents:true,energizes:true,subcircle:true};
+    const EDGE_STYLES={leads:{color:"#ef4444",width:2.5,dash:null},represents:{color:"#10b981",width:2,dash:"6,3"},energizes:{color:"#f59e0b",width:1.5,dash:"3,3"},subcircle:{color:"#3b82f6",width:1.5,dash:"8,4"}};
+    function nodeColor(n){if(n.nodeType==="person")return"#f59e0b";if(n.level===0)return"#3b82f6";if(n.level===1)return"#6366f1";return"#8b5cf6"}
+    function nodeRadius(n){if(n.nodeType==="person")return 16;if(n.level===0)return 32;if(n.level===1)return 26;return 20}
+    async function loadData(){try{const r=await fetch(API_URL,{signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error(`HTTP ${r.status}`);const d=await r.json();isLive=true;return d}catch(e){console.warn("Live API unavailable, using static data:",e.message);isLive=false;return STATIC_DATA}}
+    function renderGraph(data){graphData=data;const container=document.getElementById("graphContainer");const width=container.clientWidth;const height=container.clientHeight;const svg=d3.select("#graphSvg").attr("width",width).attr("height",height);svg.selectAll("*").remove();const defs=svg.append("defs");const glow=defs.append("filter").attr("id","glow").attr("x","-50%").attr("y","-50%").attr("width","200%").attr("height","200%");glow.append("feGaussianBlur").attr("stdDeviation","4").attr("result","coloredBlur");const merge=glow.append("feMerge");merge.append("feMergeNode").attr("in","coloredBlur");merge.append("feMergeNode").attr("in","SourceGraphic");Object.entries(EDGE_STYLES).forEach(([type,style])=>{defs.append("marker").attr("id",`arrow-${type}`).attr("viewBox","0 -5 10 10").attr("refX",20).attr("refY",0).attr("markerWidth",6).attr("markerHeight",6).attr("orient","auto").append("path").attr("d","M0,-4L10,0L0,4").attr("fill",style.color).attr("opacity",.7)});const g=svg.append("g");const zoom=d3.zoom().scaleExtent([.3,3]).on("zoom",e=>g.attr("transform",e.transform));svg.call(zoom);const nodes=data.nodes.map(n=>({...n,radius:nodeRadius(n),color:nodeColor(n)}));const visibleEdges=data.edges.filter(e=>activeFilters[e.type]).map(e=>({...e,style:EDGE_STYLES[e.type]}));simulation=d3.forceSimulation(nodes).force("link",d3.forceLink(visibleEdges).id(d=>d.id).distance(d=>d.type==="subcircle"?80:d.type==="leads"?100:120).strength(d=>d.type==="subcircle"?.8:d.type==="leads"?.5:.3)).force("charge",d3.forceManyBody().strength(-400).distanceMax(350)).force("center",d3.forceCenter(width/2,height/2)).force("collision",d3.forceCollide().radius(d=>d.radius+12)).force("x",d3.forceX(width/2).strength(.05)).force("y",d3.forceY(height/2).strength(.05));const link=g.append("g").selectAll("line").data(visibleEdges).join("line").attr("stroke",d=>d.style.color).attr("stroke-width",d=>d.style.width).attr("stroke-dasharray",d=>d.style.dash).attr("stroke-opacity",.5).attr("marker-end",d=>`url(#arrow-${d.type})`);const node=g.append("g").selectAll("g").data(nodes).join("g").attr("cursor","pointer").call(d3.drag().on("start",(e,d)=>{if(!e.active)simulation.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y}).on("drag",(e,d)=>{d.fx=e.x;d.fy=e.y}).on("end",(e,d)=>{if(!e.active)simulation.alphaTarget(0);d.fx=null;d.fy=null}));node.append("circle").attr("r",d=>d.radius).attr("fill",d=>d.color+(d.nodeType==="circle"?"22":"33")).attr("stroke",d=>d.color).attr("stroke-width",d=>d.nodeType==="circle"?2.5:2).attr("filter","url(#glow)");node.each(function(d){const el=d3.select(this);if(d.nodeType==="circle"){el.append("circle").attr("r",d.radius*.55).attr("fill","none").attr("stroke",d.color).attr("stroke-width",1.5).attr("stroke-opacity",.5)}else{el.append("circle").attr("r",5).attr("fill",d.color).attr("opacity",.8)}});node.append("text").text(d=>d.name).attr("text-anchor","middle").attr("dy",d=>d.radius+16).attr("fill","#e8edf5").attr("font-size",d=>d.nodeType==="circle"&&d.level<2?"12px":"11px").attr("font-weight",d=>d.nodeType==="circle"&&d.level===0?"700":"500").attr("font-family","'DM Sans',sans-serif").attr("paint-order","stroke").attr("stroke","#0a0f1a").attr("stroke-width",3);node.on("mouseenter",function(event,d){showTooltip(d);d3.select(this).select("circle").transition().duration(200).attr("r",d.radius*1.15);link.transition().duration(200).attr("stroke-opacity",l=>l.source.id===d.id||l.target.id===d.id?.9:.12);node.transition().duration(200).attr("opacity",n=>{if(n.id===d.id)return 1;return visibleEdges.some(e=>(e.source.id===d.id&&e.target.id===n.id)||(e.target.id===d.id&&e.source.id===n.id))?1:.25})});node.on("mouseleave",function(event,d){hideTooltip();d3.select(this).select("circle").transition().duration(200).attr("r",d.radius);link.transition().duration(200).attr("stroke-opacity",.5);node.transition().duration(200).attr("opacity",1)});node.on("click",(event,d)=>{event.stopPropagation();showDetail(d)});svg.on("click",()=>hideDetail());simulation.on("tick",()=>{link.attr("x1",d=>d.source.x).attr("y1",d=>d.source.y).attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);node.attr("transform",d=>`translate(${d.x},${d.y})`)});setTimeout(()=>{svg.transition().duration(800).call(zoom.transform,d3.zoomIdentity.translate(width*.05,height*.05).scale(.9))},500);window._graphRefs={node,link,visibleEdges,nodes}}
+    function showTooltip(d){if(selectedNode)return;document.getElementById("tooltipDot").style.background=d.color;document.getElementById("tooltipName").textContent=d.fullName||d.name;document.getElementById("tooltipPurpose").textContent=d.purpose||"";document.getElementById("tooltipPurpose").style.display=d.purpose?"block":"none";document.getElementById("tooltipMeta").textContent=(d.nodeType==="circle"?`Level ${d.level} Circle`:"Team Member")+" \u00b7 Click for details";document.getElementById("tooltip").classList.add("visible")}
+    function hideTooltip(){document.getElementById("tooltip").classList.remove("visible")}
+    function showDetail(d){selectedNode=d;hideTooltip();const panel=document.getElementById("detailPanel");const icon=document.getElementById("detailIcon");icon.style.border=`2.5px solid ${d.color}`;icon.style.background=d.color+"22";icon.textContent=d.nodeType==="circle"?"\u25c9":"\u25cf";document.getElementById("detailName").textContent=d.fullName||d.name;document.getElementById("detailType").textContent=d.nodeType==="circle"?`Level ${d.level} Circle`:"Team Member";const purposeBox=document.getElementById("purposeBox");if(d.purpose){purposeBox.style.display="block";purposeBox.style.borderLeft=`3px solid ${d.color}`;document.getElementById("detailPurpose").textContent=d.purpose}else{purposeBox.style.display="none"}const conns=graphData.edges.filter(e=>e.source===d.id||e.target===d.id||(e.source.id||e.source)===d.id||(e.target.id||e.target)===d.id);document.getElementById("connLabel").textContent=`Connections (${conns.length})`;const connList=document.getElementById("connList");connList.innerHTML="";conns.forEach(conn=>{const sourceId=conn.source.id||conn.source;const targetId=conn.target.id||conn.target;const otherId=sourceId===d.id?targetId:sourceId;const other=graphData.nodes.find(n=>n.id===otherId);if(!other)return;const item=document.createElement("div");item.className="conn-item";item.innerHTML=`<div class="conn-bar" style="background:${EDGE_STYLES[conn.type]?.color||'#6366f1'}"></div><div><div class="conn-name">${other.fullName||other.name}</div><div class="conn-type">${sourceId===d.id?"\u2192":"\u2190"} ${conn.label}</div></div>`;item.addEventListener("click",()=>{const otherNode=window._graphRefs?.nodes.find(n=>n.id===otherId);if(otherNode)showDetail(otherNode)});connList.appendChild(item)});const statsSection=document.getElementById("statsSection");if(d.nodeType==="circle"){statsSection.style.display="block";const members=conns.filter(c=>c.type==="energizes").length;const subCircles=graphData.nodes.filter(n=>{if(n.nodeType!=="circle")return false;return graphData.edges.some(e=>(e.source===n.id||e.source.id===n.id)&&(e.target===d.id||e.target.id===d.id)&&e.type==="subcircle")}).length;document.getElementById("statsGrid").innerHTML=[{label:"Members",value:members,color:d.color},{label:"Sub-circles",value:subCircles,color:d.color},{label:"Level",value:d.level,color:d.color},{label:"Status",value:d.status||"Active",color:d.color}].map(s=>`<div class="stat-box"><div class="stat-value" style="color:${s.color}">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join("")}else{statsSection.style.display="none"}panel.classList.add("open")}
+    function hideDetail(){selectedNode=null;document.getElementById("detailPanel").classList.remove("open")}
+    document.getElementById("detailClose").addEventListener("click",hideDetail);
+    document.getElementById("searchInput").addEventListener("input",function(){const q=this.value.toLowerCase();if(!window._graphRefs)return;window._graphRefs.node.transition().duration(200).attr("opacity",d=>{if(!q)return 1;const name=(d.fullName||d.name||"").toLowerCase();const purpose=(d.purpose||"").toLowerCase();return name.includes(q)||purpose.includes(q)?1:.12})});
+    document.querySelectorAll(".legend-item[data-filter]").forEach(item=>{item.addEventListener("click",function(){const type=this.dataset.filter;activeFilters[type]=!activeFilters[type];this.classList.toggle("disabled",!activeFilters[type]);if(graphData)renderGraph(graphData)})});
+    window.addEventListener("resize",()=>{if(graphData)renderGraph(graphData)});
+    (async()=>{const data=await loadData();const badge=document.getElementById("statusBadge");const statusText=document.getElementById("statusText");if(isLive){badge.classList.remove("static");badge.classList.add("live");statusText.textContent="Live from Notion"}else{badge.classList.remove("live");badge.classList.add("static");statusText.textContent="Static snapshot"}renderGraph(data);setTimeout(()=>{document.getElementById("loadingOverlay").classList.add("hidden")},600)})();
+  </script>
+</body>
+</html>
