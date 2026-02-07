@@ -32,10 +32,11 @@ app.use(express.json());
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
+// Database IDs (database_id format, required by /v1/databases/{id}/query)
 const DB_IDS = {
-  circles: "2de36f74-3758-8122-ac4a-000b520202bf",
-  people: "c2edc051-62cd-49cb-9805-38fa64d83a4f",
-  roles: "2de36f74-3758-8123-8fda-000b5d5af434",
+  circles: "2de36f74-3758-81bf-83c8-c9c69b114bc4",
+  people: "b981cd95-342b-4eb5-afa8-f38ac85c6c15",
+  roles: "2de36f74-3758-8138-b40c-d2bbdb243419",
 };
 
 function notionHeaders() {
@@ -122,6 +123,13 @@ async function buildGraphData() {
     const props = page.properties;
     const shortId = `person-${i}`;
     personIdMap[page.id] = shortId;
+
+    // Merge "Roles" and "Roles (Do Not Use)" — the latter is a legacy
+    // relation field that sometimes receives Circle Lead/Rep assignments
+    const primaryRoleIds = extractRelationIds(props["Roles"]);
+    const legacyRoleIds = extractRelationIds(props["Roles (Do Not Use)"]);
+    const allRoleIds = [...new Set([...primaryRoleIds, ...legacyRoleIds])];
+
     nodes.push({
       id: shortId, notionId: page.id,
       name: extractText(props["First Name"]) || extractText(props["Name"]),
@@ -129,7 +137,7 @@ async function buildGraphData() {
       status: extractSelect(props["Person Status"]) || "Active",
       nodeType: "person",
       circleMembershipNotionIds: extractRelationIds(props["Circle Memberships"]),
-      roleNotionIds: extractRelationIds(props["Roles"]),
+      roleNotionIds: allRoleIds,
     });
   });
 
