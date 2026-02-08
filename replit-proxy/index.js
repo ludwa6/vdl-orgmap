@@ -198,7 +198,40 @@ async function buildGraphData() {
 }
 
 app.get("/", (req, res) => {
-  res.json({ service: "VdL Farm OrgMap API", status: "running", endpoints: { "/api/graph": "GET - graph data", "/api/health": "GET - health check" } });
+  res.json({ service: "VdL Farm OrgMap API", status: "running", version: "2026-02-08b", endpoints: { "/api/graph": "GET - graph data", "/api/health": "GET - health check", "/api/debug/people": "GET - raw people data for debugging" } });
+});
+
+// ─── DEBUG endpoint: shows raw Notion data for people ───
+// Visit /api/debug/people to see exactly what Notion returns
+// for each person's role-related fields. Remove after debugging.
+app.get("/api/debug/people", async (req, res) => {
+  try {
+    const peoplePages = await queryDatabase(DB_IDS.people);
+    const debug = peoplePages.map(page => {
+      const props = page.properties;
+      const propNames = Object.keys(props);
+      // Find any property containing "role" or "Role" in the name
+      const roleProps = {};
+      propNames.forEach(name => {
+        if (name.toLowerCase().includes("role") || name.toLowerCase().includes("energize")) {
+          roleProps[name] = {
+            type: props[name].type,
+            ids: extractRelationIds(props[name]),
+          };
+        }
+      });
+      return {
+        name: extractText(props["Name"]) || extractText(props["First Name"]),
+        notionId: page.id,
+        allPropertyNames: propNames,
+        roleRelatedProperties: roleProps,
+        circleMemberships: extractRelationIds(props["Circle Memberships"]),
+      };
+    });
+    res.json({ version: "2026-02-08b", peopleCount: debug.length, people: debug });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/graph", async (req, res) => {
