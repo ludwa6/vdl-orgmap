@@ -80,6 +80,11 @@ function extractSelect(prop) {
   return prop.select.name;
 }
 
+function extractFormula(prop) {
+  if (!prop || prop.type !== "formula" || !prop.formula) return null;
+  return prop.formula.string || null;
+}
+
 async function buildGraphData() {
   const [circlePages, peoplePages] = await Promise.all([
     queryDatabase(DB_IDS.circles),
@@ -124,11 +129,13 @@ async function buildGraphData() {
     const shortId = `person-${i}`;
     personIdMap[page.id] = shortId;
 
-    // Merge "Roles" and "Roles (Do Not Use)" — the latter is a legacy
-    // relation field that sometimes receives Circle Lead/Rep assignments
-    const primaryRoleIds = extractRelationIds(props["Roles"]);
-    const legacyRoleIds = extractRelationIds(props["Roles (Do Not Use)"]);
-    const allRoleIds = [...new Set([...primaryRoleIds, ...legacyRoleIds])];
+    // "Energizes Roles" is the canonical People↔Roles relation
+    // (syncs with "Energized By" on the Roles side).
+    // "Roles" is a legacy relation kept for backward compatibility.
+    // Merge both to ensure all role assignments are captured.
+    const canonicalRoleIds = extractRelationIds(props["Energizes Roles"]);
+    const legacyRoleIds = extractRelationIds(props["Roles"]);
+    const allRoleIds = [...new Set([...canonicalRoleIds, ...legacyRoleIds])];
 
     nodes.push({
       id: shortId, notionId: page.id,
